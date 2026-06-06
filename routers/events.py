@@ -38,3 +38,44 @@ def create_event(body:EventCreate):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+    
+@router.get("/")
+def list_events(
+    upcoming_only: bool = Query(False),
+    sort_by_date: bool = Query(True)
+):
+    conn = get_connection()
+    query = "SELECT * FROM events"
+    if upcoming_only:
+        query += f" WHERE event_date > '{datetime.now(timezone.utc).isoformat()}'"
+    if sort_by_date:
+        query += " ORDER BY event_date ASC"
+
+    events = conn.execute(query).fetchall()
+    result = []
+    for event in events:
+        event = dict(event)
+        event["total_registrations"] = conn.execute(
+            "SELECT COUNT(*) FROM registrations WHERE event_id = ? AND status = 'active'",
+            (event["id"],)
+        ).fetchone()[0]
+        result.append(event)
+
+    conn.close()
+    return result
+
+@router.get("/{event_id}")
+def get_event(event_id: int):
+    conn = get_connection()
+    event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    event = dict(event)
+    event["total_registrations"] = conn.execute(
+        "SELECT COUNT(*) FROM registrations WHERE event_id = ? AND status = 'active'",
+        (event_id,)
+    ).fetchone()[0]
+
+    conn.close()
+    return event
