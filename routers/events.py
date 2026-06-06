@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, timezone
 from database import get_connection
@@ -41,18 +41,19 @@ def create_event(body:EventCreate):
     
 @router.get("/")
 def list_events(
-    upcoming_only: bool = Query(False),
-    sort_by_date: bool = Query(True)
+    upcoming_only: bool=Query(False),
+    sort_by_date: bool=Query(True)
 ):
-    conn = get_connection()
-    query = "SELECT * FROM events"
-    if upcoming_only:
-        query += f" WHERE event_date > '{datetime.now(timezone.utc).isoformat()}'"
-    if sort_by_date:
-        query += " ORDER BY event_date ASC"
+    conn=get_connection()
+    now=datetime.now(timezone.utc).isoformat()
 
-    events = conn.execute(query).fetchall()
-    result = []
+    if upcoming_only:
+        query = "SELECT * FROM events WHERE event_date > ?"
+        events = conn.execute(query, (now,)).fetchall()
+    else:
+        events = conn.execute("SELECT * FROM events").fetchall()
+
+    result=[]
     for event in events:
         event = dict(event)
         event["total_registrations"] = conn.execute(
@@ -60,6 +61,9 @@ def list_events(
             (event["id"],)
         ).fetchone()[0]
         result.append(event)
+
+    if sort_by_date:
+        result.sort(key=lambda x: x["event_date"])
 
     conn.close()
     return result
