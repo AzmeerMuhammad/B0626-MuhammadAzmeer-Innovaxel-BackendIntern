@@ -62,6 +62,36 @@ def register_user(body:RegistrationCreate):
     finally:
         conn.close()
     
+@router.get("/event/{event_id}")
+def get_event_registrations(event_id: int):
+    conn = get_connection()
+
+    event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    registrations = conn.execute(
+        "SELECT * FROM registrations WHERE event_id = ? AND status = 'active'",
+        (event_id,)
+    ).fetchall()
+
+    conn.close()
+    return [dict(r) for r in registrations]
+
+
+@router.get("/user/{user_name}")
+def get_user_registrations(user_name: str):
+    conn = get_connection()
+
+    registrations = conn.execute(
+        "SELECT * FROM registrations WHERE user_name = ? AND status = 'active'",
+        (user_name,)
+    ).fetchall()
+
+    conn.close()
+    return [dict(r) for r in registrations]
+
+
 @router.delete("/{registration_id}")
 def cancel_registration(registration_id: int):
     conn = get_connection()
@@ -101,20 +131,3 @@ def cancel_registration(registration_id: int):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
-
-
-@router.get("/event/{event_id}")
-def get_event_registrations(event_id: int):
-    conn = get_connection()
-
-    event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    registrations = conn.execute(
-        "SELECT * FROM registrations WHERE event_id = ? AND status = 'active'",
-        (event_id,)
-    ).fetchall()
-
-    conn.close()
-    return [dict(r) for r in registrations]
